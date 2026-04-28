@@ -1,16 +1,15 @@
 /**
  * src/main.jsx
  *
- * MODIFICATIONS PAR RAPPORT À L'ORIGINAL :
- *  - CommentProvider reçoit maintenant currentActivity en prop
- *  - Pour cela, Root gère selectedGroup et le transmet au CommentProvider
- *  - Le reste est inchangé
- *
- * NOTE : CommentProvider doit être à l'intérieur de AuthProvider
- * pour pouvoir lire le token via useAuth().
+ * MODIFICATIONS :
+ *  [fix-1] CommentProvider déplacé DANS AuthProvider (était à l'extérieur)
+ *          → permet à CommentContext d'accéder au token via useAuth()
+ *  [fix-2] Root gère currentActivity et le transmet à CommentProvider
+ *          → le contexte sait quelle activité charger depuis l'API
+ *  [fix-3] <App> reçoit onActivityChange pour remonter le groupe sélectionné
  */
 
-import { StrictMode, useState, useCallback } from 'react';
+import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
@@ -21,7 +20,7 @@ import { CommentProvider } from './context/CommentContext';
 function Root() {
   const { isLoading, isAuthenticated } = useAuth();
 
-  // MODIFIÉ : selectedGroup géré ici pour le passer au CommentProvider
+  // [fix-2] état local qui suit l'activité courante choisie dans App
   const [currentActivity, setCurrentActivity] = useState('');
 
   if (isLoading) {
@@ -35,15 +34,17 @@ function Root() {
   if (!isAuthenticated) return <Login />;
 
   return (
-    // MODIFIÉ : currentActivity transmis au CommentProvider
+    // [fix-1] CommentProvider est maintenant DANS AuthProvider → accès au token
+    // [fix-2] currentActivity transmis → rechargement auto des commentaires
     <CommentProvider currentActivity={currentActivity}>
-      <App onActivityChange={setCurrentActivity} currentActivity={currentActivity} />
+      <App onActivityChange={setCurrentActivity} />
     </CommentProvider>
   );
 }
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
+    {/* AuthProvider est le parent → fournit token à tout le monde */}
     <AuthProvider>
       <Root />
     </AuthProvider>

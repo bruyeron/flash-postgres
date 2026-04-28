@@ -1,27 +1,27 @@
 /**
  * src/App.jsx
  *
- * MODIFICATIONS PAR RAPPORT À L'ORIGINAL :
- *  - selectedGroup transmis au CommentProvider (nécessaire pour charger les
- *    commentaires de l'activité courante via l'API)
- *  - useManualValues importé depuis WeeklyCompletionModal pour charger les
- *    saisies manuelles côté App et les passer à DataTable
- *  - Le reste (chargement CSV, changement de groupe, dark mode) est inchangé
+ * MODIFICATION PAR RAPPORT À L'ORIGINAL :
+ *  [fix-1] Reçoit la prop `onActivityChange` depuis main.jsx
+ *  [fix-2] Appelle onActivityChange chaque fois que selectedGroup change
+ *          → le CommentProvider dans main.jsx reçoit l'activité courante
+ *          → les commentaires de la bonne activité sont chargés depuis l'API
+ *
+ * Tout le reste (chargement CSV, changement de groupe, dark mode) est inchangé.
  */
 
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
-import TopBar     from './components/TopBar';
+import TopBar    from './components/TopBar';
 import EmptyState from './components/EmptyState';
 import DataTable  from './components/DataTable';
 import Legend     from './components/Legend';
 import Loading    from './components/Loading';
 import { parseCSV }   from './utils/csvParser';
 import { buildIndex } from './utils/dataProcessor';
-// MODIFIÉ : import du hook de chargement API des saisies manuelles
-import { useManualValues } from './components/WeeklyCompletionModal';
 
-export default function App() {
+// [fix-1] onActivityChange reçu depuis main.jsx → Root → CommentProvider
+export default function App({ onActivityChange }) {
   const [dark, setDark]                       = useState(false);
   const [rawData, setRawData]                 = useState([]);
   const [allGroups, setAllGroups]             = useState([]);
@@ -34,19 +34,17 @@ export default function App() {
   const { token, isAuthenticated, isAdmin, user } = useAuth();
   const allowedServices = isAdmin ? null : (user?.services || []);
 
-  // NOUVEAU : chargement des saisies manuelles depuis l'API
-  // Les données sont rechargées automatiquement quand selectedGroup change
-  const { values: manualValues } = useManualValues(selectedGroup, token);
-
   const handleToggle = useCallback((key) => {
     setCollapseState((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  // [fix-2] Notifier le parent à chaque changement d'activité
   const handleGroupChange = useCallback((g) => {
     setSelectedGroup(g);
     setCollapseState({});
     if (rawData.length > 0) setDataIdx(buildIndex(rawData, g));
-  }, [rawData]);
+    onActivityChange?.(g); // → met à jour currentActivity dans Root → CommentProvider
+  }, [rawData, onActivityChange]);
 
   const handleAutoLoad = useCallback(async () => {
     if (!token) return;
@@ -86,6 +84,8 @@ export default function App() {
     setCollapseState({});
     setDataIdx(buildIndex(parsed, first));
     setStatusMsg(`${parsed.length} lignes · ${groups.length} activité(s)`);
+    // [fix-2] Notifier le premier groupe sélectionné automatiquement
+    onActivityChange?.(first);
   }
 
   const handleFileLoad = useCallback(async (file) => {
@@ -139,8 +139,6 @@ export default function App() {
               onToggle={handleToggle}
               dark={dark}
               currentActivity={selectedGroup}
-              // MODIFIÉ : saisies manuelles passées depuis l'API (plus de localStorage)
-              manualValues={manualValues}
             />
           )
         }
