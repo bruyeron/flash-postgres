@@ -127,7 +127,7 @@ export default function AdminPanel({ dark, onClose }) {
                 <label className="text-xs font-medium text-slate-500 block mb-1">Nom d'utilisateur</label>
                 <input type="text" required={!editing} disabled={!!editing}
                   value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  className={INPUT_CLASS} placeholder="ex: soava.bogosy" />
+                  className={INPUT_CLASS} placeholder="ex: jean.dupont" />
               </div>
 
               <div className="col-span-2 sm:col-span-1">

@@ -1,87 +1,136 @@
 """
-backend/main.py
-Point d'entrée FastAPI.
-Lance avec : uvicorn main:app --reload --port 8000
-
-MODIFICATIONS PAR RAPPORT À L'ORIGINAL :
-  - Import de Base, engine, get_db depuis database.py
-  - Base.metadata.create_all() : crée toutes les tables PostgreSQL au démarrage
-  - bootstrap_admin() : crée l'admin par défaut + migre users.json si présent
-  - Ajout des routers /api/comments et /api/manual
+Flash Production API - Backend FastAPI (Optimisé & Production Ready)
 """
 
 from contextlib import asynccontextmanager
+import time
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
-# MODIFIÉ : imports base de données
 from database import Base, engine, SessionLocal
-from models import db_models  # noqa: F401 — nécessaire pour que SQLAlchemy découvre les tables
+from models import db_models  # noqa: F401
+
 import services.auth_service as auth_svc
 
-from routers import auth, csv
-# NOUVEAU : nouveaux routers
-from routers import comments, manual
+from routers import auth, csv, comments, manual
 
 
-# ── Lifecycle : démarrage / arrêt ──────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# DB WAIT HELPER (CRITIQUE DOCKER)
+# ─────────────────────────────────────────────
+
+def wait_for_db(engine, retries=10, delay=2):
+    """
+    Attend que PostgreSQL soit prêt avant d'exécuter create_all()
+    """
+    for i in range(retries):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                print("✅ Database connected")
+                return
+        except OperationalError:
+            print(f"⏳ Database not ready ({i+1}/{retries})")
+            time.sleep(delay)
+
+    raise Exception("❌ Database unreachable after retries")
+
+
+# ─────────────────────────────────────────────
+# LIFESPAN (STARTUP / SHUTDOWN)
+# ─────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Exécuté au démarrage :
-      1. Crée les tables PostgreSQL si elles n'existent pas
-      2. Lance le bootstrap admin (migration users.json + création admin par défaut)
-    """
-    # 1. Création des tables (idempotent : ne recrée pas si elles existent)
-    Base.metadata.create_all(bind=engine)
 
-    # 2. Bootstrap admin + migration one-shot depuis users.json
+    print("🚀 Starting Flash API...")
+
+    # 1. Attendre DB
+    wait_for_db(engine)
+
+    # 2. Créer tables
+    Base.metadata.create_all(bind=engine)
+    print("📦 Database schema ready")
+
+    # 3. Bootstrap admin
     db = SessionLocal()
     try:
         auth_svc.bootstrap_admin(db)
+        print("👤 Admin bootstrap complete")
+    except Exception as e:
+        print(f"⚠️ Bootstrap warning: {e}")
     finally:
         db.close()
 
+    print("✅ Backend initialized successfully")
+
     yield
-    # (code après yield = arrêt propre, rien à faire ici)
+
+    print("🛑 Shutting down API...")
 
 
-# ── Application ────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# FASTAPI APP
+# ─────────────────────────────────────────────
 
 app = FastAPI(
     title="Flash Production API",
-    description="Backend de l'application flashprod",
     version="2.0.0",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
-# ── CORS ───────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────
+# CORS CONFIG (PROD READY)
+# ─────────────────────────────────────────────
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # remplacer par votre domaine en prod
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://10.160.33.137:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Routers ────────────────────────────────────────────────────────────────────
-app.include_router(auth.router,     prefix="/api/auth",     tags=["Authentification"])
-app.include_router(csv.router,      prefix="/api/csv",      tags=["CSV"])
-# NOUVEAU
-app.include_router(comments.router, prefix="/api/comments", tags=["Commentaires"])
-app.include_router(manual.router,   prefix="/api/manual",   tags=["Saisies manuelles"])
+
+# ─────────────────────────────────────────────
+# ROUTES
+# ─────────────────────────────────────────────
+
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(csv.router, prefix="/api/csv", tags=["CSV"])
+app.include_router(comments.router, prefix="/api/comments", tags=["Comments"])
+app.include_router(manual.router, prefix="/api/manual", tags=["Manual"])
 
 
-@app.get("/api/health", tags=["Système"])
+# ─────────────────────────────────────────────
+# HEALTHCHECK API
+# ─────────────────────────────────────────────
+
+@app.get("/api/health")
 def health():
-    """Vérifie que l'API et la connexion PostgreSQL sont opérationnelles."""
-    from sqlalchemy import text
     db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "ok", "db": "connected"}
+        return {
+            "status": "ok",
+            "database": "connected",
+            "api": "running"
+        }
     except Exception as e:
-        return {"status": "error", "db": str(e)}
+        return {
+            "status": "error",
+            "database": str(e)
+        }
     finally:
         db.close()
