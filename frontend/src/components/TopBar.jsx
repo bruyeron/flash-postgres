@@ -47,7 +47,9 @@ export default function TopBar({
             onChange={(e) => onGroupChange(e.target.value)}
           >
             <option value="">— Tous —</option>
-            {allGroups.map((g) => <option key={g} value={g}>{g}</option>)}
+            {allGroups
+            .filter(g => g !== 'ARO' && g!== 'Autres')
+              .map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         ) : (
           <span className={`${muted} ml-2`}>{allGroups[0] || '–'}</span>

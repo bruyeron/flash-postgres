@@ -73,11 +73,14 @@ export default function App({ onActivityChange }) {
 
   function applyCSV(csvText) {
     const parsed = parseCSV(csvText);
-    let groups = [...new Set(parsed.map((r) => r.groupe_suivi).filter(Boolean))].sort();
+    let groups = [...new Set(parsed.map((r) => r.groupe_suivi).filter(Boolean)
+      .filter(g => g !== 'ARO' && g!== 'Autres'))].sort();
+    console.log(`groups => ${groups}`)
     if (!isAdmin && allowedServices) {
       groups = groups.filter(g => allowedServices.includes(g));
     }
     const first = groups[0] || '';
+    console.log(`first item is ${first}`)
     setRawData(parsed);
     setAllGroups(groups);
     setSelectedGroup(first);

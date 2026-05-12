@@ -2,6 +2,7 @@ import { getMois, parseDate } from "./helpers";
 
 export function buildIndex(rows, group) {
   const filtered = group ? rows.filter((r) => r.groupe_suivi === group) : rows;
+  console.log(group)
   const dateIndex = {}, dateWeek = {}, dateMois = {};
   const allFiles = new Set(), allRd = new Set(), allDates = new Set();
 

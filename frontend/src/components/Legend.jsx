@@ -7,6 +7,7 @@ const DEVISE_MAP = {
   'Prodigy':    { symbol: 'Ar', label: 'Ariary', color: 'violet' },
   'Stellarix':  { symbol: 'Ar', label: 'Ariary', color: 'violet' },
   'Welight':    { symbol: 'Ar', label: 'Ariary', color: 'violet' },
+  'Free PRO' :  { symbol: '€',  label: 'Euros',  color: 'blue'   }
 };
 
 export default function Legend({ dark, currentActivity = '' }) {
